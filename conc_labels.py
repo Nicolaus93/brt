@@ -1,66 +1,6 @@
-from test import prior, tipicality
 from collections import defaultdict
 from itertools import combinations
-from birdseye import eye
-
-
-def ps(ci, Cm, prior):
-    """
-    Eq. 9 in the paper
-    """
-    tot = 0
-    for concept in Cm:
-        tot += prior[concept]
-    return prior[ci] / tot
-
-# @eye
-def tot_ps(Cm, prior):
-    """
-    Eq. 9 in the paper
-    Input:
-        - Cm, set - common concepts set
-        - concepts prior, dict
-    """
-    d = dict()
-    tot = 0
-    for concept in Cm:
-        p = prior[concept]
-        d[concept] = p
-        tot += p
-
-    for key in d:
-        d[key] /= tot
-
-    return d
-
-# @eye
-def marginal(Dm, Cm, ps, e_tipicality):
-    """
-    Eq. 10 in the paper
-    Input:
-        - e_tipicality, dict of dicts
-        - ps, dict of priors (from tot_ps?)
-        - Cm, dict
-    """
-    f = 0
-    for concept in Cm:
-        tip = e_tipicality[concept]
-        m = conditional(Dm, tip)
-        f += ps[concept] * m
-    return f
-
-# @eye
-def conditional(Dm, e_tipicality):
-    """
-    Eq. 11 in the paper
-    Parameters:
-        - Dm, entities set
-        - e_tipicality, (dict)
-    """
-    p = 1.
-    for entity in Dm:
-        p *= e_tipicality[entity]
-    return p
+from utils import conditional, marginal, tot_ps, prior
 
 
 class Node(object):
@@ -84,13 +24,6 @@ class Node(object):
     def __repr__(self):
         return "{}: {}".format(self.Cm, self.Dm)
 
-    # def add_child(self, child):
-    #     """
-    #     Add a children node.
-    #     """
-    #     self.Dm += child.Dm
-    #     self.children.append(child)
-
 
 class bayes_rose_tree(object):
     """
@@ -106,7 +39,6 @@ class bayes_rose_tree(object):
         self.concepts = concepts
         self.entities = entities
         self.c_prior = prior(concepts)
-        self.e_prior = prior(entities)
         self.n_clusters = len(entities)
         self.pi = pi
 
@@ -115,10 +47,11 @@ class bayes_rose_tree(object):
             # p(e|c)
             self.e_tipicality[concept] = tipicality(concepts, concept)
 
-        self.c_tipicality = defaultdict(dict)
-        for entity in entities:
-            # p(c|e)
-            self.c_tipicality[entity] = tipicality(entities, entity)
+        # self.e_prior = prior(entities)
+        # self.c_tipicality = defaultdict(dict)
+        # for entity in entities:
+        #     # p(c|e)
+        #     self.c_tipicality[entity] = tipicality(entities, entity)
 
         # self.nodes = defaultdict(list)
         self.nodes = set()
@@ -270,7 +203,7 @@ class bayes_rose_tree(object):
                 best_concept = concept
         node.label = best_concept
 
-    def update(self, node):
+    def remove(self, node):
         """
         Update all dictionaries once the best pair is found.
         """
@@ -299,8 +232,8 @@ class bayes_rose_tree(object):
 
             Ti, Tj = pair[0], pair[1]
             # maybe add Ti and Tj in node.children?
-            self.update(Ti)
-            self.update(Tj)
+            self.remove(Ti)
+            self.remove(Tj)
 
 
 if __name__ == '__main__':

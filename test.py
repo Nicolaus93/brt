@@ -1,22 +1,5 @@
 from collections import defaultdict
-
-
-def prior(vocab):
-    """
-    Calculating the prior probability for entity/concepts
-    as defined in eq. 4 of the paper.
-    """
-    d = dict()
-    total = 0
-    for concept in vocab:
-        d[concept] = 0
-        for entity in vocab[concept]:
-            current = vocab[concept][entity]
-            d[concept] += current
-            total += current
-    for concept in d:
-        d[concept] /= total
-    return d
+from utils import prior, tipicality
 
 
 def tipicality_single(vocab, conditioned, target):
@@ -35,30 +18,6 @@ def tipicality_single(vocab, conditioned, target):
     for value in vocab[conditioned]:
         total += vocab[conditioned][value]
     return vocab[conditioned][target] / total
-
-
-def tipicality(vocab, conditioned):
-    """
-    Calculates p(e|c) or p(c|e)
-    If p(e|c):
-        - vocab = dict, concepts
-        - conditioned = str, concept
-        - target = str, entity
-    If p(c|e):
-        - vocab = dict, entities
-        - conditioned = str, entity
-        - target = str, concept
-    """
-    d = dict()
-    total = 0
-    for value in vocab[conditioned]:
-        temp = vocab[conditioned][value]
-        total += temp
-        d[value] = temp
-
-    for value in d:
-        d[value] /= total
-    return d
 
 
 if __name__ == '__main__':

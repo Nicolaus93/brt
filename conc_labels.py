@@ -4,6 +4,54 @@ from utils import *
 from tqdm import tqdm
 
 
+def print_tree(current_node, indent="", last='updown'):
+
+    nb_children = lambda node: sum(
+        nb_children(child) for child in node.children) + 1
+    size_branch = {
+        child: nb_children(child) for child in current_node.children}
+
+    """ Creation of balanced lists for "up" branch and "down" branch. """
+    up = sorted(current_node.children, key=lambda node: nb_children(node))
+    down = []
+    while up and sum(size_branch[node] for node in down) < sum(size_branch[node] for node in up):
+        down.append(up.pop())
+
+    """ Printing of "up" branch. """
+    for child in up:
+        next_last = 'up' if up.index(child) is 0 else ''
+        next_indent = '{0}{1}{2}'.format(
+            indent, ' ' if 'up' in last else '│', " " * len(current_node.name()))
+        print_tree(child, indent=next_indent, last=next_last)
+
+    """ Printing of current node. """
+    if last == 'up':
+        start_shape = '┌'
+    elif last == 'down':
+        start_shape = '└'
+    elif last == 'updown':
+        start_shape = ' '
+    else:
+        start_shape = '├'
+
+    if up:
+        end_shape = '┤'
+    elif down:
+        end_shape = '┐'
+    else:
+        end_shape = ''
+
+    print('{0}{1}{2}{3}'.format(
+        indent, start_shape, current_node.name(), end_shape))
+
+    """ Printing of "down" branch. """
+    for child in down:
+        next_last = 'down' if down.index(child) is len(down) - 1 else ''
+        next_indent = '{0}{1}{2}'.format(
+            indent, ' ' if 'down' in last else '│', " " * len(current_node.name()))
+        print_tree(child, indent=next_indent, last=next_last)
+
+
 class Node(object):
     """
     Parameters:
@@ -26,11 +74,36 @@ class Node(object):
         if len(self.children) > 0:
             to_print = str(self.label) + ': ' + str(self.Dm)
         else:
-            to_print = str(self.Cm) + ': ' + str(self.Dm[0])
+            to_print = ''
+            i = 0
+            for concept in self.Cm:
+                to_print += str(concept) + ', '
+                i += 1
+                if i > 3:
+                    to_print += '...'
+                    break
+            to_print += str(self.Dm[0])
         ret = "\t" * level + to_print + "\n"
         for child in self.children:
             ret += child.__repr__(level + 1)
         return ret
+
+    def name(self):
+        if len(self.children) > 0:
+            to_print = str(self.label) + ': ' + str(self.Dm[:3])
+            # if len(self.Dm) > 3:
+            #     to_print += ', ..'
+        else:
+            to_print = ''
+            i = 0
+            for concept in self.Cm:
+                to_print += str(concept) + ', '
+                i += 1
+                if i > 3:
+                    to_print += '..'
+                    break
+            to_print += ': ' + str(self.Dm[0])
+        return to_print
 
 
 class bayes_rose_tree(object):
@@ -72,7 +145,8 @@ class bayes_rose_tree(object):
     def __repr__(self):
         ret = ''
         for node in self.nodes:
-            ret += node.__repr__()
+            # ret += node.__repr__()
+            print_tree(node)
         return ret
 
     def node_likelihood(self, node):
@@ -152,7 +226,7 @@ class bayes_rose_tree(object):
         Tm.likelihood = self.node_likelihood(Tm)
         return Tm, Tm.likelihood
 
-    def algo(self, k=100, verbose=False):
+    def algo(self, k=1000, verbose=False):
         """
         Algorithm revised.
         """
@@ -190,28 +264,30 @@ class bayes_rose_tree(object):
         best_score = 0
         best_node = None
         best_pair = (None, None)
-        for concept in self.concepts:
-            # for pair in combinations(self.nodes, 2):
-            for pair in combinations(self.concepts[concept], 2):
-                Ti, Tj = pair[0], pair[1]
-                if len(Ti.Cm & Tj.Cm) == 0:
-                    continue
-                den = Ti.likelihood * Tj.likelihood
-                join_node, join_score = self.join(Ti, Tj)
-                absorb_node, absorb_score = self.absorb(Ti, Tj)
-                collapse_node, collapse_score = self.collapse(Ti, Tj)
-                maxim = max(join_score, absorb_score, collapse_score)
-                if maxim == join_score:
-                    new_node = join_node
-                elif maxim == absorb_score:
-                    new_node = absorb_node
-                else:
-                    new_node = collapse_node
-                new_score = maxim / den
-                if new_score > best_score:
-                    best_score = new_score
-                    best_node = new_node
-                    best_pair = (Ti, Tj)
+        # for concept in self.concepts:
+        for pair in combinations(self.nodes, 2):
+        # for pair in combinations(self.concepts[concept], 2):
+            Ti, Tj = pair[0], pair[1]
+            if len(Ti.Cm & Tj.Cm) == 0:
+                continue
+            den = Ti.likelihood * Tj.likelihood
+            join_node, join_score = self.join(Ti, Tj)
+            absorb_node, absorb_score = self.absorb(Ti, Tj)
+            # absorb_node, absorb_score = None, 0
+            collapse_node, collapse_score = self.collapse(Ti, Tj)
+            # collapse_node, collapse_score = None, 0
+            maxim = max(join_score, absorb_score, collapse_score)
+            if maxim == join_score:
+                new_node = join_node
+            elif maxim == absorb_score:
+                new_node = absorb_node
+            else:
+                new_node = collapse_node
+            new_score = maxim / den
+            if new_score > best_score:
+                best_score = new_score
+                best_node = new_node
+                best_pair = (Ti, Tj)
         return best_node, best_pair
 
     def select_label(self, node):

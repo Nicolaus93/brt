@@ -9,6 +9,7 @@ if __name__ == '__main__':
 
     print("How many concepts? {}".format(len(concepts)))
     print("How many entities? {}".format(len(entities)))
+    print("Running algo..")
     brt = bayes_rose_tree(entities, concepts)
     brt.algo(k=1000)
     print(brt)

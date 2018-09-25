@@ -46,10 +46,11 @@ if __name__ == '__main__':
     graph = mydb['concept_graph']
     tot = graph.count()
     print("{} entries in the db".format(tot))
-    print("\n")
 
     concepts = defaultdict(dict)
     entities = defaultdict(dict)
+
+    print("Now sampling from the DB..")
     for record in random_sampling(graph, tot, m=m, n=n):
         if verbose:
             pprint.pprint(record)
@@ -62,4 +63,5 @@ if __name__ == '__main__':
     print("Running Bayes Rose Tree Algo")
     brt = bayes_rose_tree(entities, concepts)
     brt.algo()
+    brt.adjust()
     print(brt)

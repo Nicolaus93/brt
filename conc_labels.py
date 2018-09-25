@@ -4,54 +4,6 @@ from utils import *
 from tqdm import tqdm
 
 
-def print_tree(current_node, indent="", last='updown'):
-
-    nb_children = lambda node: sum(
-        nb_children(child) for child in node.children) + 1
-    size_branch = {
-        child: nb_children(child) for child in current_node.children}
-
-    """ Creation of balanced lists for "up" branch and "down" branch. """
-    up = sorted(current_node.children, key=lambda node: nb_children(node))
-    down = []
-    while up and sum(size_branch[node] for node in down) < sum(size_branch[node] for node in up):
-        down.append(up.pop())
-
-    """ Printing of "up" branch. """
-    for child in up:
-        next_last = 'up' if up.index(child) is 0 else ''
-        next_indent = '{0}{1}{2}'.format(
-            indent, ' ' if 'up' in last else '│', " " * len(current_node.name()))
-        print_tree(child, indent=next_indent, last=next_last)
-
-    """ Printing of current node. """
-    if last == 'up':
-        start_shape = '┌'
-    elif last == 'down':
-        start_shape = '└'
-    elif last == 'updown':
-        start_shape = ' '
-    else:
-        start_shape = '├'
-
-    if up:
-        end_shape = '┤'
-    elif down:
-        end_shape = '┐'
-    else:
-        end_shape = ''
-
-    print('{0}{1}{2}{3}'.format(
-        indent, start_shape, current_node.name(), end_shape))
-
-    """ Printing of "down" branch. """
-    for child in down:
-        next_last = 'down' if down.index(child) is len(down) - 1 else ''
-        next_indent = '{0}{1}{2}'.format(
-            indent, ' ' if 'down' in last else '│', " " * len(current_node.name()))
-        print_tree(child, indent=next_indent, last=next_last)
-
-
 class Node(object):
     """
     Parameters:
@@ -61,49 +13,23 @@ class Node(object):
             instead of being partitioned into sub-trees
     """
 
-    def __init__(self, data, common_concepts, label=None, likelihood=1):
+    def __init__(self, data, common_concepts, likelihood=1):
         assert type(common_concepts) == set
 
         self.Dm = data
         self.Cm = common_concepts
         self.children = []
         self.likelihood = likelihood
-        self.label = label
+        self.label = self.Dm[0]
 
-    def __repr__(self, level=0):
+    def __repr__(self):
         if len(self.children) > 0:
-            to_print = str(self.label) + ': ' + str(self.Dm)
+            return str(self.label)
         else:
-            to_print = ''
-            i = 0
-            for concept in self.Cm:
-                to_print += str(concept) + ', '
-                i += 1
-                if i > 3:
-                    to_print += '...'
-                    break
-            to_print += str(self.Dm[0])
-        ret = "\t" * level + to_print + "\n"
-        for child in self.children:
-            ret += child.__repr__(level + 1)
-        return ret
+            return str(self.Dm[0])
 
     def name(self):
-        if len(self.children) > 0:
-            to_print = str(self.label) + ': ' + str(self.Dm[:3])
-            # if len(self.Dm) > 3:
-            #     to_print += ', ..'
-        else:
-            to_print = ''
-            i = 0
-            for concept in self.Cm:
-                to_print += str(concept) + ', '
-                i += 1
-                if i > 3:
-                    to_print += '..'
-                    break
-            to_print += ': ' + str(self.Dm[0])
-        return to_print
+        return self.__repr__()
 
 
 class bayes_rose_tree(object):
@@ -127,17 +53,11 @@ class bayes_rose_tree(object):
             # p(e|c)
             self.e_tipicality[concept] = tipicality(concepts, concept)
 
-        # self.e_prior = prior(entities)
-        # self.c_tipicality = defaultdict(dict)
-        # for entity in entities:
-        #     # p(c|e)
-        #     self.c_tipicality[entity] = tipicality(entities, entity)
-
         self.nodes = set()
         self.concepts = defaultdict(set)
         for entity in entities:
             common_concepts = set(entities[entity].keys())
-            new_node = Node([entity], common_concepts, label=entity)
+            new_node = Node([entity], common_concepts)
             for concept in common_concepts:
                 self.concepts[concept].add(new_node)
             self.nodes.add(new_node)
@@ -146,7 +66,11 @@ class bayes_rose_tree(object):
         ret = ''
         for node in self.nodes:
             # ret += node.__repr__()
-            print_tree(node)
+            if len(node.children) == 0:
+                print(node, end=', ')
+            else:
+                print("\n")
+                print_tree(node)
         return ret
 
     def node_likelihood(self, node):
@@ -156,6 +80,7 @@ class bayes_rose_tree(object):
             - node, Node object
         """
         if len(node.children) == 0:
+            # leaf node
             return 1
 
         prior = tot_ps(node.Cm, self.c_prior)
@@ -207,6 +132,7 @@ class bayes_rose_tree(object):
 
         Tm = Node(data, common_concepts)
         Tm.children.append(Tj)
+        Tm.children += Ti.children
         Tm.likelihood = self.node_likelihood(Tm)
         return Tm, Tm.likelihood
 
@@ -223,23 +149,22 @@ class bayes_rose_tree(object):
             return None, 0
 
         Tm = Node(data, common_concepts)
+        Tm.children += Ti.children + Tj.children
         Tm.likelihood = self.node_likelihood(Tm)
         return Tm, Tm.likelihood
 
-    def algo(self, k=1000, verbose=False):
+    def algo(self, k=100, verbose=False):
         """
         Algorithm revised.
         """
-
         for i in tqdm(range(k)):
 
-            if verbose:
-                print("{} remaining nodes".format(len(self.nodes)))
+            node, pair, op, score = self.select_pair()
 
-            node, pair = self.select_pair()
             if node is None:
                 print("Interrupted")
                 break
+
             self.select_label(node)
             for concept in node.Cm:
                 self.concepts[concept].add(node)
@@ -248,6 +173,12 @@ class bayes_rose_tree(object):
             Ti, Tj = pair[0], pair[1]
             self.remove(Ti)
             self.remove(Tj)
+
+            if verbose:
+                print("{}: {}, {} remaining nodes".format(
+                    op, score, len(self.nodes)))
+                print(self)
+                print("\n")
 
         return
 
@@ -264,31 +195,41 @@ class bayes_rose_tree(object):
         best_score = 0
         best_node = None
         best_pair = (None, None)
+        op = 'None'
         # for concept in self.concepts:
+        #     for pair in combinations(self.concepts[concept], 2):
         for pair in combinations(self.nodes, 2):
-        # for pair in combinations(self.concepts[concept], 2):
             Ti, Tj = pair[0], pair[1]
             if len(Ti.Cm & Tj.Cm) == 0:
                 continue
             den = Ti.likelihood * Tj.likelihood
             join_node, join_score = self.join(Ti, Tj)
-            absorb_node, absorb_score = self.absorb(Ti, Tj)
-            # absorb_node, absorb_score = None, 0
+            absorb_node, absorb_score = self.absorb(Ti, Tj)  # maybe absorb(Tj, Ti)?
             collapse_node, collapse_score = self.collapse(Ti, Tj)
-            # collapse_node, collapse_score = None, 0
-            maxim = max(join_score, absorb_score, collapse_score)
-            if maxim == join_score:
-                new_node = join_node
-            elif maxim == absorb_score:
-                new_node = absorb_node
-            else:
-                new_node = collapse_node
+            absorb_node, absorb_score = None, 0
+            collapse_node, collapse_score = None, 0
+
+            scores = (join_score, absorb_score, collapse_score)
+            maxim = max(scores)
+
+            # if maxim <= .5:
+            #     continue
+
             new_score = maxim / den
             if new_score > best_score:
+                if maxim == absorb_score:
+                    best_node = absorb_node
+                    op = 'absorb'
+                elif maxim == join_score:
+                    best_node = join_node
+                    op = 'join'
+                else:
+                    best_node = collapse_node
+                    op = 'collapse'
+
                 best_score = new_score
-                best_node = new_node
                 best_pair = (Ti, Tj)
-        return best_node, best_pair
+        return best_node, best_pair, op, best_score
 
     def select_label(self, node):
         """
@@ -313,6 +254,67 @@ class bayes_rose_tree(object):
         for concept in node.Cm:
             self.concepts[concept].remove(node)
 
+    def adjust(self):
+        for node in self.nodes:
+            res = True
+            while res:
+                res = post_process(node)
+
+
+def post_process(node):
+    if len(node.children) == 0:
+        return False
+    else:
+        for child in node.children:
+            if child.label == node.label:
+                for grandchild in child.children:
+                    node.children.append(grandchild)
+                node.children.remove(child)
+                return True
+            post_process(child)
+
 
 if __name__ == '__main__':
-    brt = bayes_rose_tree()
+
+    """
+                          ┌clothing
+                     ┌item┤
+                     │    └food
+             ┌expense┤
+             │       │    ┌transportation
+             │       └cost┤
+             │            └insurance
+     industry┤
+             │                 ┌chemical
+             │        ┌industry┤
+             │        │        └energy
+             └industry┤
+                      │    ┌oil
+                      └fuel┤
+                           └gas
+    """
+
+    concepts = set(['set', 'list'])
+    data = ['leaf']
+    a = Node(data, concepts)
+    b = Node(data, concepts)
+    c = Node(data, concepts)
+    d = Node(data, concepts)
+    e = Node(data, concepts)
+    f = Node(data, concepts)
+    g = Node(data, concepts)
+    a.label = 'industry'
+    a.children = [b, c]
+    b.label = 'industry'  # or fuel
+    b.children = [d, e]
+    d.label = 'gas'
+    e.label = 'oil'
+    c.label = 'industry'
+    c.children = [f, g]
+    f.label = 'chemical'
+    g.label = 'energy'
+    print_tree(a)
+    res = True
+    while res:
+        res = post_process(a)
+    print_tree(a)

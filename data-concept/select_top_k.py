@@ -3,6 +3,10 @@ import pickle
 
 
 if __name__ == '__main__':
+    """
+    Select the most common entites from the
+    Microsoft Concept Graph and save them using pickle.
+    """
 
     concepts = defaultdict(dict)
     entities = defaultdict(dict)

@@ -3,10 +3,14 @@ import pprint
 
 
 if __name__ == '__main__':
+    """
+    Store the Microsoft Concept Graph (reduced version) in MongoDB.
+    """
 
     client = pm.MongoClient()
     mydb = client['concept_graph']
     try:
+        # if it already exists, delete it
         mydb.drop_collection('concept_graph')
     except Exception:
         pass

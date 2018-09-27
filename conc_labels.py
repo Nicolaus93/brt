@@ -204,8 +204,9 @@ class bayes_rose_tree(object):
                 continue
             den = Ti.likelihood * Tj.likelihood
             join_node, join_score = self.join(Ti, Tj)
-            absorb_node, absorb_score = self.absorb(Ti, Tj)  # maybe absorb(Tj, Ti)?
-            collapse_node, collapse_score = self.collapse(Ti, Tj)
+            # absorb_node, absorb_score = self.absorb(Ti, Tj)  # maybe absorb(Tj, Ti)?
+            # collapse_node, collapse_score = self.collapse(Ti, Tj)
+            # we actually don't need those
             absorb_node, absorb_score = None, 0
             collapse_node, collapse_score = None, 0
 
@@ -262,6 +263,12 @@ class bayes_rose_tree(object):
 
 
 def post_process(node):
+    """
+    If we only use join, we need this function to absorb
+    and collapse nodes as in the original article.
+    ToDo: use a recursive implentation,
+          current one is inefficient.
+    """
     if len(node.children) == 0:
         return False
     else:

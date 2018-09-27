@@ -19,7 +19,7 @@ if __name__ == '__main__':
                        unique=True)
     docs = []
 
-    with open('data-concept/data-concept-instance-relations.txt') as f:
+    with open('data-concept-instance-relations.txt') as f:
         for line in f:
             words = line.split()
             if len(words) == 3:

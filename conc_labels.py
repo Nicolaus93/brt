@@ -2,6 +2,7 @@ from collections import defaultdict
 from itertools import combinations
 from utils import *
 from tqdm import tqdm
+import random
 
 
 class Node(object):
@@ -153,7 +154,7 @@ class bayes_rose_tree(object):
         Tm.likelihood = self.node_likelihood(Tm)
         return Tm, Tm.likelihood
 
-    def algo(self, k=100, verbose=False):
+    def algo(self, k=100, streaming=False, verbose=False):
         """
         Algorithm revised.
         """
@@ -232,6 +233,58 @@ class bayes_rose_tree(object):
                 best_pair = (Ti, Tj)
         return best_node, best_pair, op, best_score
 
+    def algo_streaming(self, k=200, gamma=0.5):
+
+        already_seen = set()
+        for i in tqdm(range(k)):
+
+            # sample node (simulate streaming)
+            try:
+                Ti = random.sample(self.nodes, 1)[0]
+            except Exception:
+                print("no more nodes to stream")
+                self.nodes = already_seen
+                Ti = random.sample(self.nodes, 1)[0]
+
+            while Ti.children == 0:
+                Ti = random.sample(self.nodes, 1)[0]
+
+            # removed sampled node from self.nodes
+            self.nodes.remove(Ti)
+            node, Tj, score = self.select_pair_streaming(Ti, already_seen)
+            if node is None or score <= gamma:
+                already_seen.add(Ti)
+                continue
+
+            # select label
+            self.select_label(node)
+
+            already_seen.add(node)
+            already_seen.remove(Tj)
+
+        # return already_seen
+        self.nodes = already_seen
+
+    def select_pair_streaming(self, Ti, nodes):
+        """
+        Right now only performing "join" operation.
+        """
+
+        best_score = 0
+        best_node = None
+        best_buddy = None
+
+        for Tj in nodes:
+            if len(Ti.Cm & Tj.Cm) == 0:
+                continue
+            den = Ti.likelihood * Tj.likelihood
+            join_node, join_score = self.join(Ti, Tj)
+            if join_score / den > best_score:
+                best_node = join_node
+                best_score = join_score / den
+                best_buddy = Tj
+        return best_node, best_buddy, best_score
+
     def select_label(self, node):
         """
         Select the label of a new node from its set of
@@ -257,71 +310,75 @@ class bayes_rose_tree(object):
 
     def adjust(self):
         for node in self.nodes:
-            res = True
-            while res:
-                res = post_process(node)
+            post_process(node)
 
 
 def post_process(node):
     """
     If we only use join, we need this function to absorb
     and collapse nodes as in the original article.
-    ToDo: use a recursive implentation,
-          current one is inefficient.
     """
     if len(node.children) == 0:
-        return False
+        return
     else:
-        for child in node.children:
-            if child.label == node.label:
-                for grandchild in child.children:
-                    node.children.append(grandchild)
-                node.children.remove(child)
-                return True
+        i = 0
+        while True:
+            if i >= len(node.children):
+                break
+            child = node.children[i]
             post_process(child)
+            if child.label == node.label:
+                node.children.pop(i)
+                node.children = child.children + node.children
+                i += len(child.children)
+            else:
+                i += 1
 
 
 if __name__ == '__main__':
 
     """
-                          ┌clothing
-                     ┌item┤
-                     │    └food
-             ┌expense┤
-             │       │    ┌transportation
-             │       └cost┤
-             │            └insurance
+                      ┌energy
+             ┌industry┤
+             │        └chemical
      industry┤
-             │                 ┌chemical
-             │        ┌industry┤
-             │        │        └energy
+             │        ┌gas
              └industry┤
-                      │    ┌oil
-                      └fuel┤
-                           └gas
+                      └oil
+    Becomes:
+
+             ┌leaf
+             ├leaf
+     industry┤
+             ├leaf
+             └leaf
+
     """
 
     concepts = set(['set', 'list'])
     data = ['leaf']
-    a = Node(data, concepts)
-    b = Node(data, concepts)
-    c = Node(data, concepts)
-    d = Node(data, concepts)
-    e = Node(data, concepts)
-    f = Node(data, concepts)
-    g = Node(data, concepts)
+    a = Node(['energy', 'chemical', 'gas', 'oil'], concepts)
+    b = Node(['energy', 'chemical'], concepts)
+    c = Node(['gas', 'oil'], concepts)
+    d = Node(['energy'], concepts)
+    e = Node(['industry'], concepts)
+    f = Node(['gas'], concepts)
+    g = Node(['industry'], concepts)
+    h = Node(['chemical'], concepts)
+    i = Node(['oil'], concepts)
+
+    e.children = [h]
+    g.children = [i]
     a.label = 'industry'
     a.children = [b, c]
     b.label = 'industry'  # or fuel
     b.children = [d, e]
-    d.label = 'gas'
-    e.label = 'oil'
+    d.label = 'energy'
+    e.label = 'industry'
     c.label = 'industry'
     c.children = [f, g]
-    f.label = 'chemical'
-    g.label = 'energy'
+    f.label = 'gas'
+    g.label = 'industry'
     print_tree(a)
-    res = True
-    while res:
-        res = post_process(a)
+    post_process(a)
     print_tree(a)

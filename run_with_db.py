@@ -62,6 +62,8 @@ if __name__ == '__main__':
     parser.add_argument('-seed', dest='s', type=int,
                         help='seed using for sampling from db (Default None)',
                         default=None)
+    parser.add_argument('-streaming', dest='streaming', action='store_true',
+                        default=False, help='use the incremental version')
     parser.add_argument('-verbose', dest='verbose', action='store_true',
                         default=False,
                         help='print stuff uh?')
@@ -72,6 +74,7 @@ if __name__ == '__main__':
     n = args.n
     k = args.k
     seed = args.s
+    streaming = args.streaming
     verbose = args.verbose
 
     client = pm.MongoClient()
@@ -97,6 +100,10 @@ if __name__ == '__main__':
 
     print("Running Bayes Rose Tree Algo")
     brt = bayes_rose_tree(entities, concepts)
-    brt.algo(k=k, verbose=verbose)
+    if streaming:
+        brt.algo_streaming(k=k, gamma=0.51)
+    else:
+        brt.algo(k=k, verbose=verbose)
+
     brt.adjust()
     print(brt)

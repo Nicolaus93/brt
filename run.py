@@ -1,4 +1,5 @@
 from conc_labels import bayes_rose_tree
+from utils import print_tree
 import pickle
 
 if __name__ == '__main__':
@@ -15,6 +16,7 @@ if __name__ == '__main__':
     print("How many entities? {}".format(len(entities)))
     print("Running algo..")
     brt = bayes_rose_tree(entities, concepts)
-    brt.algo(k=80)
+    # brt.algo(k=80)
+    brt.algo_streaming(k=100, gamma=.50000001)
     brt.adjust()
     print(brt)
